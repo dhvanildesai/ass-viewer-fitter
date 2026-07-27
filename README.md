@@ -14,7 +14,7 @@ cd ass-viewer-fitter
 ./install.sh
 ```
 
-`install.sh` creates an isolated conda environment (`asassn-viewer`, Python 3.11) and installs the required packages (Flask, numpy, pandas, scipy, astropy) into it via pip. It also generates `run_ass.sh`, a launch script that activates that environment for you.
+`install.sh` creates an isolated conda environment (`asassn-viewer`, Python 3.13) and installs the required packages (Flask, numpy, pandas, scipy, astropy) into it via pip. It also generates `run_ass.sh`, a launch script that activates that environment for you.
 
 > `run_ass.sh` is generated fresh by `install.sh` on your machine (it embeds local conda paths), so it's gitignored rather than committed — always run `install.sh` first on a new machine, don't copy `run_ass.sh` from elsewhere.
 
@@ -46,4 +46,4 @@ Optional flags (pass them straight through, e.g. `./run_ass.sh --port 8080`):
 ### Navigate objects
 Use the `‹`/`›` buttons, or type a name in "Jump to name…" and press Enter.
 
-That covers the basics — the right-hand panel has more controls (Monte Carlo error estimation, flags, redshift/extinction, baseline correction, etc.) worth exploring once you're comfortable with the core workflow.
+That covers the basics — the right-hand panel has more controls (Monte Carlo error estimation, flags, redshift/extinction, baseline correction, etc.) worth exploring later on.

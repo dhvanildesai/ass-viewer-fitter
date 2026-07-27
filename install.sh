@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  ASAS-SN Light Curve Viewer — Installer
+#  ASAS-SN Light Curve Viewer & Fitter — Installer
 #  Supports: Intel Mac, Apple Silicon (M1/M2/M3), Linux (x86_64 / arm64)
 # =============================================================================
 
@@ -9,7 +9,7 @@ set -euo pipefail
 BOLD='\033[1m'; DIM='\033[2m'; CYAN='\033[0;36m'
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; RESET='\033[0m'
 
-ENV_NAME="asassn-viewer"
+ENV_NAME="asassn-viewer-test"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REQS="$SCRIPT_DIR/requirements.txt"
 
@@ -83,7 +83,7 @@ CONDA_SH="$CONDA_BASE/etc/profile.d/conda.sh"
 # ── 3. Create the conda environment ──────────────────────────────────────────
 # `conda create` with only python+pip resolves fast; all real packages go in
 # via pip (step 4) instead of conda, since pip is much faster for these.
-step "Creating conda environment '$ENV_NAME' (Python 3.11)"
+step "Creating conda environment '$ENV_NAME' (Python 3.13)"
 
 ENV_PREFIX="$CONDA_BASE/envs/$ENV_NAME"
 
@@ -93,7 +93,7 @@ if [[ -d "$ENV_PREFIX" ]]; then
 fi
 
 # This is the fastest possible conda env creation: only Python + pip, nothing else.
-"$CONDA_CMD" create -n "$ENV_NAME" python=3.11 pip -y --quiet \
+"$CONDA_CMD" create -n "$ENV_NAME" python=3.13 pip -y --quiet \
     --override-channels -c conda-forge
 ok "Conda environment created at $ENV_PREFIX"
 
@@ -167,5 +167,5 @@ ok "run_ass.sh created"
 echo -e "\n${GREEN}${BOLD}  ✦  Installation complete!${RESET}"
 echo -e "${DIM}  ─────────────────────────────────────────────${RESET}"
 echo -e "\n  ${BOLD}To launch the app:${RESET}"
-echo -e "    ${CYAN}bash run_ass.sh${RESET}"
+echo -e "    ${CYAN}./run_ass.sh${RESET}"
 echo -e "\n  ${DIM}Flags: --port 8080  |  --no-browser${RESET}\n"
