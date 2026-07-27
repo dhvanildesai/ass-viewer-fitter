@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASAS-SN LC Viewer + Fitter</title>
+<script src="https://cdn.plot.ly/plotly-2.34.0.min.js" crossorigin="anonymous"></script>
+<style>
+  :root {
+    /* navy/steel-blue theme */
+    --bg: #090d18; --bg2: #0e1525; --bg3: #152035;
+    --border: #1d2e50; --border2: #28406e;
+    --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+    --accent: #3b82f6; --accent2: #60a5fa; --accent-g: #10b981;
+    --accent-v: #f59e0b; --red: #ef4444; --cyan: #22d3ee;
+    --ok: #22c55e; --warn: #f59e0b; --danger: #ef4444;
+    --sidebar: 268px; --rp: 280px; --mc-panel: 256px;
+    --topbar: 52px;
+    --plot-grid: #2e3352; --plot-bg: rgba(15,17,23,0.8);
+  }
+
+  #topbar { background: #0c1220; border-bottom-color: #1d2e50; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif;
+         font-size:13px; height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ─── top bar ─── */
+  #topbar {
+    height:var(--topbar); background:var(--bg2); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:8px; padding:0 12px; flex-shrink:0; z-index:10;
+  }
+  #topbar img { height:42px; object-fit:contain; }
+  .tb-sep { width:1px; height:28px; background:var(--border); margin:0 4px; }
+  .tb-title { font-weight:700; font-size:15px; color:var(--text); letter-spacing:.3px; white-space:nowrap; }
+
+  /* brand block matches the sidebar's width for a clean vertical seam */
+  #topbarBrand {
+    width:calc(var(--sidebar) - 12px); min-width:calc(var(--sidebar) - 12px);
+    display:flex; align-items:center; gap:8px; flex-shrink:0; overflow:hidden;
+  }
+
+  .tb-nav { display:flex; align-items:center; gap:4px; }
+  .tb-nav button { background:var(--bg3); border:1px solid var(--border); color:var(--text2);
+                   border-radius:5px; padding:5px 10px; cursor:pointer; font-size:12px; }
+  .tb-nav button:hover { background:var(--border2); color:var(--text); }
+  #objCounter { color:var(--text2); font-size:12px; white-space:nowrap; }
+
+  .jump-wrap { display:flex; gap:4px; }
+  .jump-wrap input { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+                     border-radius:5px; padding:5px 8px; width:150px; font-size:12px; }
+  .jump-wrap button { background:var(--accent); border:none; color:#fff;
+                      border-radius:5px; padding:5px 10px; cursor:pointer; font-size:12px; }
+
+  /* object info in topbar */
+  #topObjInfo { display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow:hidden; }
+  .tb-obj-name { font-size:18px; font-weight:700; color:var(--text);
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  #statusBar { color:var(--text3); font-size:11px; white-space:nowrap;
+               max-width:220px; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+
+  /* sidebar action buttons */
+  #sidebarActions { display:flex; flex-direction:column; gap:4px; padding:8px 8px 4px; flex-shrink:0; }
+  #sidebarActions button {
+    background:var(--bg3); border:1px solid var(--border); color:var(--text2);
+    border-radius:5px; padding:5px 4px; font-size:11px; cursor:pointer; white-space:nowrap; }
+  #sidebarActions button:hover { background:var(--border2); color:var(--text); }
+  #sidebarActions #clearBtn { color:var(--red); width:100%; }
+  #masterPathDisplay {
+    padding:0 10px 6px; font-size:10px; color:var(--text3);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  #masterPathDisplay:empty { display:none; }
+
+  /* ─── main layout ─── */
+  #main { display:flex; flex:1; overflow:hidden; }
+
+  /* ─── left sidebar ─── */
+  #sidebar {
+    width:var(--sidebar); min-width:var(--sidebar); background:var(--bg2);
+    border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden;
+  }
+  #sidebar h3 { padding:10px 12px 6px; font-size:11px; font-weight:700;
+                 text-transform:uppercase; letter-spacing:.8px; color:var(--text3); }
+  #sidebar .sidebar-tools { display:flex; gap:4px; padding:0 8px 6px; }
+  #sidebar .sidebar-tools button {
+    flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text2);
+    border-radius:5px; padding:4px 6px; font-size:11px; cursor:pointer; }
+  #sidebar .sidebar-tools button:hover { background:var(--border2); color:var(--text); }
+  #objList { flex:1; overflow-y:auto; padding:0 6px 8px; }
+  #objList::-webkit-scrollbar { width:4px; }
+  #objList::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+  .obj-item {
+    padding:6px 8px; border-radius:6px; cursor:pointer; margin-bottom:2px;
+    display:flex; align-items:center; gap:6px; transition:.1s;
+    border:1px solid transparent;
+  }
+  .obj-item:hover { background:var(--bg3); }
+  .obj-item.selected { background:var(--bg3); border-color:var(--accent); }
+  .obj-item .obj-name { flex:1; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .obj-item .obj-bands { font-size:10px; color:var(--text3); white-space:nowrap; }
+  .obj-item .obj-remove {
+    flex-shrink:0; width:16px; height:16px; display:flex; align-items:center; justify-content:center;
+    border-radius:3px; color:var(--text3); font-size:10px; cursor:pointer; opacity:0; transition:.15s;
+  }
+  .obj-item:hover .obj-remove { opacity:1; }
+  .obj-item .obj-remove:hover { background:var(--danger); color:#fff; }
+  .obj-item .obj-flag { font-size:9px; font-weight:700; padding:1px 4px; border-radius:3px; margin-right:4px; }
+  .obj-item .fit-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .fit-dot.done    { background:var(--ok); }
+  .fit-dot.partial { background:var(--warn); }
+  .fit-dot.none    { background:transparent; border:1px solid var(--border2); }
+  .fit-done    { background:#064e3b; color:#6ee7b7; }
+  .fit-refit   { background:#422006; color:#fcd34d; }
+  .fit-badlc   { background:#450a0a; color:#fca5a5; }
+  .fit-toofaint{ background:#1e1b4b; color:#a5b4fc; }
+
+  /* bottom-of-sidebar axis/zoom controls */
+  #sidebarExtra { padding:8px; border-top:1px solid var(--border); }
+  #sidebarExtra label { display:block; color:var(--text3); font-size:11px; margin-bottom:3px; }
+  #sidebarExtra select { width:100%; background:var(--bg3); border:1px solid var(--border);
+                                 color:var(--text); border-radius:5px; padding:4px 6px; font-size:12px; }
+  .vs-row { display:flex; gap:4px; margin-top:5px; }
+  .vs-row input { flex:1; background:var(--bg3); border:1px solid var(--border);
+                  color:var(--text); border-radius:5px; padding:4px 6px; font-size:11px; }
+  .vs-row button { background:var(--accent); border:none; color:#fff;
+                   border-radius:5px; padding:4px 8px; font-size:11px; cursor:pointer; }
+
+  /* axis mode toggle switches (Flux/Mag, JD/UT) */
+  .axis-toggle-native { display:none !important; }
+  .axis-toggle-visual { display:flex; gap:2px; background:var(--bg3); border:1px solid var(--border);
+                        border-radius:7px; padding:3px; }
+  .axis-toggle-visual button { flex:1; padding:4px 6px; border-radius:5px; border:none; cursor:pointer;
+                               font-size:11px; font-weight:600; color:var(--text2); background:transparent;
+                               transition:.15s; }
+  .axis-toggle-visual button:hover:not(.active) { background:var(--border2); color:var(--text); }
+  .axis-toggle-visual button.active { background:var(--accent); color:#fff; }
+
+  /* ─── center content ─── */
+  #content { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ─── fitter area ─── */
+  #fitterArea { flex:1; display:flex; overflow:hidden; }
+
+  /* fitter center */
+  #fitterCenter { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+  #fitStatusChip { font-size:11px; padding:2px 7px; border-radius:4px; background:var(--bg3); color:var(--text2); white-space:nowrap; }
+  #fitPlotWrap   { flex:1; min-height:0; position:relative; }
+  #fitPlotInner  { width:100%; height:100%; }
+
+  /* selection box overlay */
+  #selBox {
+    position:absolute; border:2px dashed var(--accent2); background:rgba(99,102,241,.1);
+    pointer-events:none; display:none; z-index:5;
+  }
+
+  /* MC side panel */
+  #mcPanel {
+    width:30px; min-width:30px; background:var(--bg2);
+    border-left:1px solid var(--border);
+    display:flex; flex-direction:row; overflow:hidden;
+    transition:width .2s ease, min-width .2s ease; flex-shrink:0;
+  }
+  #mcPanel.open { width:var(--mc-panel); min-width:var(--mc-panel); }
+  #mcToggleTab {
+    width:30px; min-width:30px; display:flex; flex-direction:column;
+    align-items:center; justify-content:flex-start;
+    cursor:pointer; padding-top:14px; gap:8px;
+    border-right:1px solid var(--border); flex-shrink:0;
+  }
+  #mcToggleTab:hover { background:var(--bg3); }
+  #mcToggleArrow { color:var(--text3); font-size:10px; }
+  #mcHeaderTitle {
+    writing-mode:vertical-rl; text-orientation:mixed;
+    transform:rotate(180deg);
+    font-size:10px; font-weight:700; color:var(--text3);
+    text-transform:uppercase; letter-spacing:.8px;
+  }
+  #mcBody {
+    flex:1; display:flex; flex-direction:column;
+    overflow:hidden; min-width:0;
+  }
+  #mcBodyHeader {
+    padding:5px 8px; font-size:11px; font-weight:700; color:var(--text2);
+    border-bottom:1px solid var(--border);
+    display:flex; flex-direction:column; gap:1px; flex-shrink:0;
+  }
+  #mcInfo { font-size:10px; font-weight:400; color:var(--text3); }
+  #mcHistContainer {
+    flex:1; display:flex; flex-direction:column;
+    overflow-y:auto; padding:4px 5px; gap:5px;
+  }
+  .mc-hist { height:130px; flex-shrink:0; }
+
+  /* Collapsible right-panel sections */
+  .rp-collapsible > h4 { cursor:pointer; user-select:none; display:flex; justify-content:space-between; align-items:center; }
+  .rp-collapsible > h4::after { content:'▼'; font-size:8px; opacity:.5; }
+  .rp-collapsible.collapsed > h4::after { content:'▶'; }
+  .rp-collapsible.collapsed .rp-body { display:none; }
+
+  /* ─── right panel (fitter) ─── */
+  #rightPanel {
+    width:var(--rp); min-width:var(--rp); background:var(--bg2);
+    border-left:1px solid var(--border); display:flex; flex-direction:column;
+    overflow-y:auto; overflow-x:hidden;
+  }
+  #rightPanel::-webkit-scrollbar { width:4px; }
+  #rightPanel::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+  .rp-section { padding:8px 10px; border-bottom:1px solid var(--border); }
+  .rp-section h4 { font-size:10px; font-weight:800; text-transform:uppercase;
+                   letter-spacing:.8px; color:var(--text3); margin-bottom:6px; }
+  .rp-row { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+  .rp-row label { color:var(--text3); font-size:11px; min-width:80px; flex-shrink:0; }
+  .rp-row input, .rp-row select {
+    flex:1; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); border-radius:5px; padding:4px 6px; font-size:11px; min-width:0;
+  }
+  .rp-row input:focus, .rp-row select:focus { outline:none; border-color:var(--accent); }
+  .rp-row input[type=checkbox] { flex:none; width:14px; height:14px; cursor:pointer; }
+  .rp-small { font-size:10px; color:var(--text3); margin-bottom:5px; line-height:1.4; }
+
+  /* buttons */
+  .btn { border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600;
+         cursor:pointer; transition:.15s; }
+  .btn:hover   { filter:brightness(1.15); }
+  .btn:active  { filter:brightness(.9); }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-success { background:#166534; color:#bbf7d0; }
+  .btn-warn    { background:#78350f; color:#fde68a; }
+  .btn-danger  { background:#7f1d1d; color:#fecaca; }
+  .btn-ghost   { background:var(--bg3); border:1px solid var(--border); color:var(--text2); }
+  .btn-cyan    { background:#1e3a5f; color:#93c5fd; }
+  .btn-full    { width:100%; }
+  .btn-row     { display:flex; gap:4px; }
+  .btn-row .btn{ flex:1; padding:5px 6px; font-size:11px; }
+  #btnPickGuess.armed { background:var(--red); color:#fff; }
+  #fitPlotWrap.pick-armed { cursor:crosshair; }
+
+  /* result chips */
+  #fitResultChips { display:flex; flex-wrap:wrap; gap:4px; padding:6px 10px;
+                    border-bottom:1px solid var(--border); min-height:0; }
+  .chip { background:var(--bg3); border:1px solid var(--border); border-radius:5px;
+          padding:3px 7px; font-size:11px; color:var(--text2); }
+  .chip strong { color:var(--text); }
+
+  #fitWarnings { padding:0 10px 4px; }
+  .warn-msg { background:#451a03; border-left:3px solid var(--warn); color:#fde68a;
+              border-radius:3px; padding:4px 7px; font-size:11px; margin-top:3px; }
+
+  .info-badge { font-size:11px; padding:2px 7px; border-radius:4px; font-weight:600; }
+  .badge-g    { background:#064e3b; color:#6ee7b7; }
+  .badge-V    { background:#451a03; color:#fed7aa; }
+  .badge-both { background:#1e3a5f; color:#93c5fd; }
+
+  /* flags */
+  .flag-btn { font-size:11px; font-weight:700; padding:4px 8px; border-radius:5px;
+              border:1px solid var(--border); cursor:pointer; transition:.15s; background:var(--bg3); color:var(--text2); }
+  .flag-btn:hover   { filter:brightness(1.2); }
+  .flag-btn.active  { border-width:2px; }
+  .flag-good     { background:#064e3b; color:#6ee7b7; border-color:#065f46; }
+  .flag-refit    { background:#422006; color:#fcd34d; border-color:#78350f; }
+  .flag-badlc    { background:#450a0a; color:#fca5a5; border-color:#7f1d1d; }
+  .flag-toofaint { background:#1e1b4b; color:#a5b4fc; border-color:#312e81; }
+  .flag-remove   { background:#450a0a; color:#f87171; border-color:#991b1b; }
+
+  /* Modal */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.7); display:none;
+    align-items:center; justify-content:center; z-index:100;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:10px;
+           padding:20px; width:460px; max-width:95vw; }
+  .modal h3 { font-size:14px; font-weight:700; margin-bottom:12px; color:var(--text); }
+  .modal label { display:block; font-size:11px; color:var(--text2); margin-bottom:3px; margin-top:6px; }
+  .modal input[type=text], .modal input[type=file], .modal select {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); border-radius:5px; padding:6px 8px; font-size:12px; margin-bottom:4px;
+  }
+  .modal .btn-row { justify-content:flex-end; margin-top:12px; }
+  .modal .btn-row .btn { flex:none; padding:6px 16px; }
+
+  /* Toast */
+  #toast {
+    position:fixed; bottom:18px; right:18px; background:var(--bg3);
+    border:1px solid var(--border2); border-radius:8px; padding:10px 16px;
+    font-size:12px; color:var(--text); z-index:200; display:none;
+    max-width:340px; box-shadow:0 4px 20px rgba(0,0,0,.4);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+
+  .hidden { display:none !important; }
+  .btn-loaded { opacity:0.35; }
+  .btn-loaded:hover { opacity:0.8; }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div id="topbar">
+  <div id="topbarBrand">
+    <img id="logoImg" src="/logo/dark" alt="ASAS-SN" onerror="this.style.display='none'">
+    <span class="tb-title">LC Viewer + Fitter</span>
+  </div>
+  <div class="tb-sep"></div>
+
+  <div class="jump-wrap">
+    <input id="jumpInput" placeholder="Jump to name…" onkeydown="if(event.key==='Enter')jumpToName()">
+    <button onclick="jumpToName()">Go</button>
+  </div>
+
+  <div class="tb-nav">
+    <button onclick="navigate(-1)">&#9664;</button>
+    <span id="objCounter">0 / 0</span>
+    <button onclick="navigate(1)">&#9654;</button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div id="topObjInfo">
+    <span id="fitObjTitle" class="tb-obj-name">—</span>
+    <span id="fitStatusChip">unfitted</span>
+    <span id="fitBandBadge" class="info-badge badge-g">g</span>
+  </div>
+
+  <span id="statusBar">No data loaded</span>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- ─── LEFT SIDEBAR ─── -->
+  <div id="sidebar">
+    <div id="sidebarActions">
+      <div style="display:flex;gap:4px;width:100%">
+        <button style="flex:1" onclick="document.getElementById('fileInput').click()">&#8679; Upload LCs</button>
+        <input type="file" id="fileInput" multiple accept=".dat,.txt" style="display:none" onchange="uploadFiles(this.files)">
+        <button style="flex:1" onclick="openCsvModal()">&#8679; Master CSV</button>
+      </div>
+      <button id="clearBtn" style="width:100%" onclick="clearAll()">&#10005; Clear all</button>
+    </div>
+    <div id="masterPathDisplay"></div>
+    <h3>Objects <span id="sidebarCount" style="color:var(--text3)"></span></h3>
+    <div class="sidebar-tools">
+      <button onclick="sortObjects()">Sort A-Z</button>
+      <button onclick="filterFitted()" id="filterBtn">Show All</button>
+    </div>
+    <div id="objList"></div>
+
+    <!-- Axis + zoom controls at bottom of sidebar -->
+    <div id="sidebarExtra">
+      <label>Y-axis</label>
+      <div class="axis-toggle">
+        <select id="fitYaxisSelect" class="axis-toggle-native" onchange="refreshFitChart()">
+          <option value="flux">Flux (mJy)</option>
+          <option value="mag">Magnitude</option>
+        </select>
+        <div class="axis-toggle-visual" data-target="fitYaxisSelect">
+          <button type="button" data-value="flux">Flux</button>
+          <button type="button" data-value="mag">Mag</button>
+        </div>
+      </div>
+      <label style="margin-top:5px">X-axis</label>
+      <div class="axis-toggle">
+        <select id="fitXaxisSelect" class="axis-toggle-native" onchange="refreshFitChart()">
+          <option value="jd">Julian Date</option>
+          <option value="ut">UT Date</option>
+        </select>
+        <div class="axis-toggle-visual" data-target="fitXaxisSelect">
+          <button type="button" data-value="jd">JD</button>
+          <button type="button" data-value="ut">UT</button>
+        </div>
+      </div>
+      <label style="margin-top:5px">Zoom to JD range</label>
+      <div class="vs-row">
+        <input id="vJDmin" placeholder="JD min" type="number" step="0.1">
+        <input id="vJDmax" placeholder="JD max" type="number" step="0.1">
+      </div>
+      <div class="vs-row" style="margin-top:4px">
+        <button onclick="applyJDZoom()">Apply</button>
+        <button onclick="resetJDZoom()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;flex:1">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── CONTENT AREA ─── -->
+  <div id="content">
+
+    <div id="fitterArea">
+
+      <!-- Fitter center column -->
+      <div id="fitterCenter">
+
+        <!-- Fit result chips row -->
+        <div id="fitResultChips"></div>
+        <div id="fitWarnings"></div>
+
+        <!-- Fit plot -->
+        <div id="fitPlotWrap">
+          <div id="selBox"></div>
+          <div id="fitPlotInner"></div>
+        </div>
+
+      </div><!-- end fitterCenter -->
+
+      <!-- MC side panel (between plot and controls) -->
+      <div id="mcPanel">
+        <div id="mcToggleTab" onclick="toggleMC()">
+          <span id="mcToggleArrow">◀</span>
+          <span id="mcHeaderTitle">MC Histograms</span>
+        </div>
+        <div id="mcBody">
+          <div id="mcBodyHeader"><div>MC Histograms</div><div id="mcInfo"></div></div>
+          <div id="mcHistContainer"></div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div id="rightPanel">
+
+        <!-- Template dir — first thing to set up -->
+        <div class="rp-section">
+          <h4>Templates</h4>
+          <div class="rp-row">
+            <label>Directory</label>
+            <input id="rpTemplateDir" type="text" placeholder="/path/to/templates"
+                   oninput="document.getElementById('btnLoadTemplates').classList.remove('btn-loaded')">
+          </div>
+          <button class="btn btn-primary btn-full" id="btnLoadTemplates" onclick="setTemplateDir()">Load Templates</button>
+          <div id="templateStatus" class="rp-small" style="margin-top:4px"></div>
+        </div>
+
+        <!-- Fit Actions (always open) -->
+        <div class="rp-section">
+          <h4>Fit Actions</h4>
+          <div class="rp-row" style="margin-bottom:6px">
+            <label>Subtype</label>
+            <select id="fitSubType" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:11px">
+              <option value="">— load templates first —</option>
+            </select>
+          </div>
+          <div class="rp-row" style="margin-bottom:6px">
+            <label>Bands</label>
+            <select id="rpBands" onchange="setBands()">
+              <option value="g">g-band only</option>
+              <option value="V">V-band only</option>
+              <option value="both">Both (g+V)</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" style="margin-bottom:5px" onclick="runFit()">&#9654; Run Fit</button>
+          <div class="btn-row" style="margin-bottom:6px">
+            <button class="btn btn-ghost" onclick="findBestFit()">&#10004; Find Best</button>
+            <button class="btn btn-ghost" onclick="fitAll()">Fit All</button>
+          </div>
+          <div class="rp-row">
+            <label>N_MC</label>
+            <input id="rpNmc" type="number" value="250" min="10" max="5000" step="10">
+          </div>
+          <button class="btn btn-cyan btn-full" onclick="runMC()">&#9654; Run MC Errors</button>
+        </div>
+
+        <!-- Fit Bounds (collapsible, closed by default) -->
+        <div class="rp-section rp-collapsible collapsed" id="secFitBounds">
+          <h4 onclick="toggleSection('secFitBounds')">Fit Bounds</h4>
+          <div class="rp-body">
+            <button class="btn btn-cyan btn-full" id="btnPickGuess" style="margin-bottom:8px" onclick="togglePickGuess()">&#9678; Pick Peak from Plot</button>
+            <div class="rp-row">
+              <label>Peak flux</label>
+              <input id="rpPeakFlux" type="number" step="0.001" placeholder="mJy guess">
+            </div>
+            <div class="rp-row">
+              <label>± Δ flux</label>
+              <input id="rpFluxDelta" type="number" step="0.001" placeholder="mJy range">
+            </div>
+            <div class="rp-row">
+              <label>Peak time</label>
+              <input id="rpPeakTime" type="number" step="0.1" placeholder="JD guess">
+            </div>
+            <div class="rp-row">
+              <label>± Δ time</label>
+              <input id="rpTimeDelta" type="number" step="1" value="50" placeholder="days">
+            </div>
+            <div class="rp-row" id="sBVrow">
+              <label>sBV guess</label>
+              <input id="rpsBVguess" type="number" step="0.01" value="0.5">
+            </div>
+            <div class="rp-row" id="sBVboundsRow">
+              <label>sBV range</label>
+              <input id="rpsBVlo" type="number" step="0.01" value="0.10" style="flex:none;width:60px">
+              <span style="color:var(--text3);font-size:11px">–</span>
+              <input id="rpsBVhi" type="number" step="0.01" value="1.15" style="flex:none;width:60px">
+            </div>
+            <div class="rp-row">
+              <label>JD min/max</label>
+              <input id="rpJDmin" type="number" step="0.1" placeholder="min" style="flex:none;width:68px">
+              <span style="color:var(--text3);font-size:11px">–</span>
+              <input id="rpJDmax" type="number" step="0.1" placeholder="max" style="flex:none;width:68px">
+            </div>
+            <div class="rp-row">
+              <label>Sigma clip</label>
+              <input type="checkbox" id="rpSigmaClip" checked>
+              <span style="font-size:10px;color:var(--text3)">15σ→5σ iterative</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Object Info (collapsible, closed by default) -->
+        <div class="rp-section rp-collapsible collapsed" id="secObjInfo">
+          <h4 onclick="toggleSection('secObjInfo')">Object Info</h4>
+          <div class="rp-body">
+            <div class="rp-row">
+              <label>Subtype</label>
+              <span id="rpTypeToUse" style="font-size:12px;color:var(--text2);flex:1">—</span>
+            </div>
+            <div class="rp-row">
+              <label>Redshift</label>
+              <input id="rpRedshift" type="number" step="0.0001" placeholder="e.g. 0.012">
+              <button class="btn btn-ghost" style="padding:3px 7px;font-size:11px" onclick="setRedshift()">Set</button>
+            </div>
+            <div class="rp-row">
+              <label>K-corr (mag)</label>
+              <input id="rpKcorr" type="number" step="0.001" placeholder="0.0">
+            </div>
+            <div class="rp-row">
+              <label>Gal. ext (mag)</label>
+              <input id="rpGalext" type="number" step="0.001" placeholder="0.0">
+            </div>
+            <div class="rp-row">
+              <label>dist_mod</label>
+              <input id="rpDistmod" type="number" step="0.001" placeholder="auto from z">
+            </div>
+            <div class="rp-row">
+              <label>V-scale</label>
+              <input id="rpVscale" type="number" step="0.01" value="1.0">
+              <button class="btn btn-ghost" style="padding:3px 7px;font-size:11px" onclick="applyVscale()">Set</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Manipulation (collapsible, collapsed by default) -->
+        <div class="rp-section rp-collapsible collapsed" id="secDataManip">
+          <h4 onclick="toggleSection('secDataManip')">Data Manipulation</h4>
+          <div class="rp-body">
+            <div class="rp-small">Add error in quadrature</div>
+            <div class="rp-row">
+              <label>Err inflate</label>
+              <input id="rpErrInflate" type="number" step="0.0001" value="0" placeholder="mJy">
+              <button class="btn btn-ghost" style="padding:3px 7px;font-size:11px" onclick="applyErrInflate()">Set</button>
+            </div>
+            <div class="rp-small" style="margin-top:4px">Baseline shift: pick a quiescent JD range</div>
+            <div class="rp-row">
+              <input id="rpBsJD1" type="number" step="0.1" placeholder="JD1" style="flex:1;min-width:0">
+              <span style="color:var(--text3);font-size:11px">–</span>
+              <input id="rpBsJD2" type="number" step="0.1" placeholder="JD2" style="flex:1;min-width:0">
+              <button class="btn btn-warn" style="padding:3px 7px;font-size:11px;flex:none" onclick="applyBaseline()">Shift</button>
+            </div>
+            <div style="margin-top:5px">
+              <button class="btn btn-ghost btn-full" onclick="resetPoints()">Reset points</button>
+            </div>
+            <div class="rp-small" style="margin-top:6px">Remove points where error &gt; N × median error</div>
+            <div class="rp-row">
+              <label>N (sigma)</label>
+              <input id="rpErrSigma" type="number" step="0.5" value="3" min="0.5" placeholder="3">
+              <button class="btn btn-ghost" style="padding:3px 7px;font-size:11px" onclick="filterByError()">Filter</button>
+            </div>
+            <div class="rp-small" style="margin-top:5px">
+              Right-click a point to remove it.<br>
+              <strong>Shift + drag</strong> to select a region.
+            </div>
+          </div>
+        </div>
+
+        <!-- Flags (always open) -->
+        <div class="rp-section">
+          <h4>Flag Object</h4>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            <button class="flag-btn flag-good"     onclick="setFlag('good')"    >good</button>
+            <button class="flag-btn flag-refit"    onclick="setFlag('refit')"   >refit</button>
+            <button class="flag-btn flag-badlc"    onclick="setFlag('badlc')"   >badlc</button>
+            <button class="flag-btn flag-toofaint" onclick="setFlag('toofaint')">toofaint</button>
+            <button class="flag-btn flag-remove"   onclick="setFlag('remove')"  >remove</button>
+            <button class="flag-btn"               onclick="setFlag(null)"      >clear</button>
+          </div>
+        </div>
+
+        <!-- History (always open) -->
+        <div class="rp-section">
+          <h4>History</h4>
+          <div class="btn-row">
+            <button class="btn btn-ghost" id="btnUndo" onclick="undoFit()">&#10554; Undo</button>
+            <button class="btn btn-danger" onclick="revertFit()">&#8635; Revert All</button>
+          </div>
+          <button class="btn btn-success btn-full" style="margin-top:5px" onclick="toggleComplete()">&#10003; Mark Done</button>
+        </div>
+
+        <!-- Save (always open) -->
+        <div class="rp-section">
+          <h4>Save Result</h4>
+          <div class="rp-row">
+            <label>Output CSV</label>
+            <input id="rpOutputCsv" type="text" placeholder="/path/to/output.csv">
+          </div>
+          <button class="btn btn-success btn-full" onclick="saveFitResult()">&#128190; Save This Object</button>
+        </div>
+
+      </div><!-- end rightPanel -->
+    </div><!-- end fitterArea -->
+
+  </div><!-- end content -->
+</div><!-- end main -->
+
+<!-- ─── Master CSV Modal ─── -->
+<div class="modal-overlay" id="csvModal">
+  <div class="modal">
+    <h3>Load Master CSV</h3>
+    <label>CSV file</label>
+    <input type="file" id="csvFileInput" accept=".csv,.txt">
+    <label>LC data directory (optional — where .dat files live)</label>
+    <input type="text" id="csvLcDir" placeholder="/path/to/lc/files">
+    <label>Output CSV for fit results (won't overwrite input)</label>
+    <input type="text" id="csvOutputPath" placeholder="/path/to/output_fits.csv">
+    <label>Template directory (optional)</label>
+    <input type="text" id="csvTemplateDir" placeholder="/path/to/templates">
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeCsvModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="loadMasterCSV()">Load</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Generic Confirm Modal ─── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="width:360px">
+    <h3 id="confirmModalTitle">Confirm</h3>
+    <p id="confirmModalMsg" style="color:var(--text2);font-size:12px;line-height:1.5;margin-bottom:4px"></p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="_resolveConfirmModal(false)">Cancel</button>
+      <button class="btn btn-danger" onclick="_resolveConfirmModal(true)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// Global state
+// ═══════════════════════════════════════════════════════════════════════
+let currentIndex = 0;
+let totalObjects = 0;
+let mcOpen       = false;
+let filterFittedOnly = false;
+let _fitInteractionSetup = false;
+let _resetFitRange = false;
+let _pickingGuess = false;
+
+// Selection-box drag state
+let _selDragging = false;
+let _selStartX   = 0;
+let _selStartY   = 0;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════════════════
+function toast(msg, ms=2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(() => el.style.display = 'none', ms);
+}
+function setStatus(msg) { document.getElementById('statusBar').textContent = msg; }
+
+// In-app confirm dialog — replaces window.confirm(), which some browsers/
+// embedded webviews silently suppress (auto-resolving false, no visible prompt).
+let _confirmResolve = null;
+function confirmDialog(message, title='Confirm') {
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalMsg').textContent = message;
+  document.getElementById('confirmModal').classList.add('open');
+  return new Promise(resolve => { _confirmResolve = resolve; });
+}
+function _resolveConfirmModal(result) {
+  document.getElementById('confirmModal').classList.remove('open');
+  if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+}
+
+async function api(path, method='GET', body=null, isForm=false) {
+  const opts = { method };
+  if (body) {
+    if (isForm) { opts.body = body; }
+    else { opts.headers = {'Content-Type':'application/json'}; opts.body = JSON.stringify(body); }
+  }
+  const r = await fetch(path, opts);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+
+function getNumVal(id, fallback=null) {
+  const v = (document.getElementById(id)?.value ?? '').trim();
+  if (!v) return fallback;
+  const f = parseFloat(v); return isNaN(f) ? fallback : f;
+}
+function setVal(id, v) {
+  if (v === null || v === undefined) return;
+  const el = document.getElementById(id); if (el) el.value = v;
+}
+function fmt(v, dp=4) {
+  if (v === null || v === undefined) return '—';
+  const f = parseFloat(v); return isNaN(f) ? '—' : f.toFixed(dp);
+}
+function fmtErr(v, lo, hi, dp=4) {
+  let s = fmt(v, dp);
+  if (lo != null && hi != null && s !== '—')
+    s += ` <span style="color:var(--text3)">(-${fmt(lo,dp)}/+${fmt(hi,dp)})</span>`;
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Object list
+// ═══════════════════════════════════════════════════════════════════════
+async function refreshObjList() {
+  let data;
+  try { data = await api('/api/fit/objects'); } catch { return; }
+  totalObjects = data.objects.length;
+  document.getElementById('sidebarCount').textContent = `(${totalObjects})`;
+  document.getElementById('objCounter').textContent = `${currentIndex+1} / ${totalObjects}`;
+  const ul = document.getElementById('objList');
+  ul.innerHTML = '';
+  let selectedEl = null;
+  data.objects.forEach((o, i) => {
+    if (filterFittedOnly && !o.fitted) return;
+    const div = document.createElement('div');
+    div.className = 'obj-item' + (i === currentIndex ? ' selected' : '');
+    div.onclick = () => selectObj(i);
+    const dotClass = o.completed ? 'done' : o.fitted ? 'partial' : 'none';
+    const bands = [o.has_g?'g':'', o.has_V?'V':''].filter(Boolean).join('+') || '?';
+    let flagHtml = '';
+    if (o.flag) {
+      const cls = {good:'fit-done',refit:'fit-refit',badlc:'fit-badlc',toofaint:'fit-toofaint',remove:'fit-badlc'}[o.flag] || '';
+      flagHtml = `<span class="obj-flag ${cls}">${o.flag}</span>`;
+    }
+    div.innerHTML =
+      `<span class="fit-dot ${dotClass}"></span>` +
+      `<span class="obj-name">${o.name}</span>` +
+      `${flagHtml}<span class="obj-bands">${bands}</span>` +
+      `<span class="obj-remove" title="Remove ${o.name}">&#10005;</span>`;
+    div.querySelector('.obj-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeObj(o.name);
+    });
+    ul.appendChild(div);
+    if (i === currentIndex) selectedEl = div;
+  });
+  if (selectedEl) selectedEl.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+
+async function selectObj(idx) {
+  currentIndex = idx;
+  _resetFitRange = true;
+  disarmPickGuess();
+  await loadFitGuesses(idx);
+  refreshObjList();
+}
+
+async function removeObj(name) {
+  if (!(await confirmDialog(`Remove "${name}" from the loaded list?`))) return;
+  let curName = null;
+  try { curName = (await api('/api/fit/objects')).objects[currentIndex]?.name; } catch {}
+  try {
+    await api('/api/remove','POST',{name});
+    toast(`Removed ${name}`);
+    const data = await api('/api/fit/objects');
+    totalObjects = data.objects.length;
+    if (totalObjects === 0) {
+      currentIndex = 0;
+      Plotly.purge('fitPlotInner');
+      document.getElementById('fitObjTitle').textContent = '—';
+      document.getElementById('fitResultChips').innerHTML = '';
+      document.getElementById('fitWarnings').innerHTML = '';
+      document.getElementById('mcHistContainer').innerHTML = '';
+      document.getElementById('mcInfo').textContent = '';
+    } else {
+      const stillIdx = (curName && curName !== name) ? data.objects.findIndex(o => o.name === curName) : -1;
+      currentIndex = stillIdx >= 0 ? stillIdx : Math.min(currentIndex, totalObjects - 1);
+      await loadFitGuesses(currentIndex);
+    }
+    refreshObjList();
+  } catch(e) { toast(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════════════════════════════════════
+async function navigate(dir) {
+  if (totalObjects === 0) return;
+  _resetFitRange = true;
+  disarmPickGuess();
+  try {
+    const d = await api('/api/fit/navigate','POST',{direction:dir});
+    currentIndex = d.index;
+    await loadFitGuesses(currentIndex);
+  } catch(e) { toast(e.message); }
+  refreshObjList();
+}
+function prevFitObj() { navigate(-1); }
+function nextFitObj() { navigate(1);  }
+
+async function jumpToName() {
+  const name = document.getElementById('jumpInput').value.trim();
+  if (!name) return;
+  try {
+    const d = await api('/api/jump_to_name','POST',{name});
+    if (d.found) {
+      currentIndex = d.index;
+      _resetFitRange = true;
+      disarmPickGuess();
+      document.getElementById('jumpInput').value = '';
+      await loadFitGuesses(currentIndex);
+      refreshObjList();
+      if (d.matched) toast(`Matched: ${d.matched}`);
+    } else toast(`Not found: "${name}"`);
+  } catch(e) { toast(e.message); }
+}
+
+function sortObjects() { refreshObjList(); }
+function filterFitted() {
+  filterFittedOnly = !filterFittedOnly;
+  document.getElementById('filterBtn').textContent = filterFittedOnly ? 'All' : 'Show All';
+  refreshObjList();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Upload / Clear
+// ═══════════════════════════════════════════════════════════════════════
+async function uploadFiles(files) {
+  if (!files.length) return;
+  toast(`Uploading ${files.length} file(s)…`);
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  try {
+    const d = await api('/api/upload_files','POST',fd,true);
+    totalObjects = d.loaded; currentIndex = 0;
+    setStatus(`${d.loaded} objects loaded`);
+    toast(`Loaded ${d.loaded} objects`);
+    await refreshObjList();
+    loadFitGuesses(0);
+  } catch(e) { toast(`Upload error: ${e.message}`); }
+  document.getElementById('fileInput').value = '';
+}
+
+async function clearAll() {
+  if (!(await confirmDialog('Clear all loaded objects?'))) return;
+  try {
+    await api('/api/clear','POST');
+    totalObjects = 0; currentIndex = 0;
+    setStatus('No data loaded');
+    document.getElementById('masterPathDisplay').textContent = '';
+    document.getElementById('fitObjTitle').textContent = '—';
+    Plotly.purge('fitPlotInner');
+    refreshObjList();
+    document.getElementById('fitResultChips').innerHTML = '';
+    document.getElementById('fitWarnings').innerHTML    = '';
+    document.getElementById('mcHistContainer').innerHTML = '';
+    document.getElementById('mcInfo').textContent = '';
+  } catch(e) { toast(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Master CSV modal
+// ═══════════════════════════════════════════════════════════════════════
+function openCsvModal()  { document.getElementById('csvModal').classList.add('open'); }
+function closeCsvModal() { document.getElementById('csvModal').classList.remove('open'); }
+
+async function loadMasterCSV() {
+  const csvFile  = document.getElementById('csvFileInput').files[0];
+  if (!csvFile) { toast('Select a CSV file first'); return; }
+  const lcDir     = document.getElementById('csvLcDir').value.trim();
+  const outPath   = document.getElementById('csvOutputPath').value.trim();
+  const tmplDir   = document.getElementById('csvTemplateDir').value.trim();
+  toast('Loading CSV…');
+  const fd = new FormData();
+  fd.append('csv_file', csvFile);
+  if (lcDir)   fd.append('lc_dir', lcDir);
+  if (outPath) fd.append('output_csv', outPath);
+  try {
+    const d  = await api('/api/fit/load_master_csv','POST',fd,true);
+    totalObjects = d.loaded; currentIndex = 0;
+    if (outPath) setVal('rpOutputCsv', outPath);
+    closeCsvModal();
+    toast(`Loaded ${d.loaded} objects`+(d.missing?.length?` (${d.missing.length} missing LC files)`:''));
+    setStatus(`${d.loaded} objects from CSV`);
+    document.getElementById('masterPathDisplay').textContent = csvFile.name;
+    await refreshObjList();
+    if (tmplDir) {
+      setVal('rpTemplateDir', tmplDir);
+      await setTemplateDir();
+    }
+    loadFitGuesses(0);
+  } catch(e) { toast(`CSV error: ${e.message}`); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Zoom to a typed JD range — pure client-side, applies to whichever chart
+// (pre-fit preview or post-fit plot) is currently shown. Calls the
+// auto-band-select logic directly (Plotly.relayout's *event* only splits
+// 'xaxis.range' into 'xaxis.range[0]'/'[1]' keys for user-driven zooms —
+// a programmatic update like this one emits the single 'xaxis.range' key,
+// which the plotly_relayout listener wouldn't recognize).
+// ═══════════════════════════════════════════════════════════════════════
+function applyJDZoom() {
+  const pDiv = document.getElementById('fitPlotInner');
+  if (!pDiv?.data?.length) { toast('Load an object first'); return; }
+  const a = getNumVal('vJDmin'); const b = getNumVal('vJDmax');
+  if (a == null || b == null) { toast('Enter both JD min and max'); return; }
+  const jdMin = Math.min(a,b), jdMax = Math.max(a,b);
+  const xIsDate = document.getElementById('fitXaxisSelect').value === 'ut';
+  const x0 = xIsDate ? new Date((jdMin - 2440587.5) * 86400000).toISOString() : jdMin;
+  const x1 = xIsDate ? new Date((jdMax - 2440587.5) * 86400000).toISOString() : jdMax;
+  Plotly.relayout(pDiv, {'xaxis.range': [x0, x1], 'xaxis.autorange': false, 'yaxis.autorange': true});
+  applyAutoBand(computeAutoBand(jdMin, jdMax));
+}
+function resetJDZoom() {
+  document.getElementById('vJDmin').value = '';
+  document.getElementById('vJDmax').value = '';
+  const pDiv = document.getElementById('fitPlotInner');
+  if (pDiv?.data?.length) Plotly.relayout(pDiv, {'xaxis.autorange': true, 'yaxis.autorange': true});
+  applyAutoBand('both');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FITTER — load guesses into right panel
+// ═══════════════════════════════════════════════════════════════════════
+async function loadFitGuesses(idx) {
+  if (totalObjects === 0) return;
+  currentIndex = idx;
+  const jdMin = getNumVal('rpJDmin'); const jdMax = getNumVal('rpJDmax');
+  let params = `?index=${idx}`;
+  if (jdMin) params += `&jd_min_fit=${jdMin}`;
+  if (jdMax) params += `&jd_max_fit=${jdMax}`;
+  try {
+    const d = await api(`/api/fit/get_guesses${params}`);
+    const titleLabel = d.type_to_use ? `${d.name}  (${d.type_to_use})` : d.name;
+    document.getElementById('fitObjTitle').textContent = titleLabel;
+    document.getElementById('objCounter').textContent  = `${idx+1} / ${d.total}`;
+    setStatus(d.name);
+
+    if (d.peak_flux_guess != null) setVal('rpPeakFlux', d.peak_flux_guess.toFixed?.(6) ?? d.peak_flux_guess);
+    if (d.peak_time_guess != null) setVal('rpPeakTime', d.peak_time_guess.toFixed?.(2) ?? d.peak_time_guess);
+    if (d.flux_delta      != null) setVal('rpFluxDelta', d.flux_delta.toFixed?.(6) ?? d.flux_delta);
+    if (d.time_delta      != null) setVal('rpTimeDelta', d.time_delta);
+    if (d.sBV_guess       != null) setVal('rpsBVguess', d.sBV_guess);
+    if (d.sBV_lo          != null) setVal('rpsBVlo',    d.sBV_lo);
+    if (d.sBV_hi          != null) setVal('rpsBVhi',    d.sBV_hi);
+    if (d.redshift        != null) setVal('rpRedshift', d.redshift);
+    if (d.k_corr          != null) setVal('rpKcorr',    d.k_corr);
+    if (d.gal_ext         != null) setVal('rpGalext',   d.gal_ext);
+    if (d.dist_mod        != null) setVal('rpDistmod',  d.dist_mod);
+    setVal('rpVscale',      d.v_scale      ?? 1.0);
+    setVal('rpErrInflate',  d.error_inflate ?? 0.0);
+    document.getElementById('rpBands').value = d.active_bands === 'both' ? 'both' : (d.band || 'g');
+
+    updateBandBadge(d.band, d.active_bands);
+
+    // type_to_use from master CSV
+    document.getElementById('rpTypeToUse').textContent = d.type_to_use || '—';
+
+    // Prior sub_type (from last fit, overrides type_to_use for selector)
+    const wantType = d.prior_sub_type || d.type_to_use;
+    if (wantType) {
+      const sel = document.getElementById('fitSubType');
+      if ([...sel.options].some(o => o.value === wantType))
+        sel.value = wantType;
+    }
+
+    // Status chip
+    const chip = document.getElementById('fitStatusChip');
+    if (d.completed) { chip.textContent='✓ Done'; chip.style.background='#064e3b'; chip.style.color='#6ee7b7'; }
+    else if (d.fit_result) { chip.textContent='Fitted'; chip.style.background='#422006'; chip.style.color='#fde68a'; }
+    else { chip.textContent='unfitted'; chip.style.background='var(--bg3)'; chip.style.color='var(--text2)'; }
+
+    document.getElementById('btnUndo').disabled = !d.has_undo;
+    updateSbVVisibility();
+    updateFlagUI(d.flag);
+
+    if (d.fit_result) {
+      renderFitResultChips(d.fit_result);
+      renderFitPlot(idx);
+    } else {
+      document.getElementById('fitResultChips').innerHTML = '';
+      document.getElementById('fitWarnings').innerHTML    = '';
+      renderFitDataPlot(idx);
+    }
+
+    // MC histograms: restore if this object has MC data, otherwise clear
+    if (d.has_mc) {
+      fetchAndRenderMCHistograms(idx);
+    } else {
+      document.getElementById('mcHistContainer').innerHTML = '';
+      document.getElementById('mcInfo').textContent = '';
+      if (mcOpen) toggleMC();
+    }
+  } catch(e) { setStatus(`Error: ${e.message}`); toast(e.message); }
+}
+
+async function fetchAndRenderMCHistograms(idx) {
+  try {
+    const d = await api(`/api/fit/mc_histograms?index=${idx}`);
+    if (d.has_mc) {
+      renderMCHistograms(d);
+    }
+  } catch(e) { console.warn('fetchAndRenderMCHistograms:', e?.message || e); }
+}
+
+// Y/X-axis toggles must re-render whichever chart is currently showing —
+// the post-fit chart if a fit exists, otherwise the raw-data preview.
+function refreshFitChart() {
+  _resetFitRange = true;
+  if (document.getElementById('fitResultChips').innerHTML) renderFitPlot(currentIndex);
+  else renderFitDataPlot(currentIndex);
+}
+
+// Show raw LC data in fitter when no fit has been run yet
+async function renderFitDataPlot(idx) {
+  try {
+    const showFlux = document.getElementById('fitYaxisSelect').value === 'flux';
+    const xMode    = document.getElementById('fitXaxisSelect').value;
+    const d = await api(`/api/plot?index=${idx}&flux=${showFlux?1:0}&xaxis=${xMode}`);
+    const layout = {
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor:  'rgba(9,13,24,0.85)',
+      font: {color:'#e2e8f0', family:'Inter,system-ui,sans-serif', size:11},
+      xaxis: {title:d.xaxis_title||'JD', gridcolor:'#1d2e50', zerolinecolor:'#1d2e50', color:'#94a3b8',
+              type: xMode==='ut' ? 'date' : '-'},
+      yaxis: {title:d.yaxis_title||'Flux (mJy)', gridcolor:'#1d2e50', zerolinecolor:'#1d2e50', color:'#94a3b8',
+              ...(d.y_range ? {range:d.y_range, autorange:false} : {autorange: showFlux ? true : 'reversed'})},
+      showlegend: true,
+      legend: {x:1, y:1, xanchor:'right', bgcolor:'rgba(14,21,37,0.9)',
+               bordercolor:'#1d2e50', borderwidth:1, font:{size:10}},
+      margin: {t:30, b:50, l:65, r:10},
+      hovermode: 'closest',
+      annotations: [{
+        text: 'No fit yet — set bounds in the right panel and click Run Fit',
+        xref:'paper', yref:'paper', x:0.5, y:0.97,
+        xanchor:'center', yanchor:'top', showarrow:false,
+        font:{size:12, color:'#4b7060'}
+      }]
+    };
+    Plotly.react('fitPlotInner', d.traces, layout,
+      {responsive:true, displaylogo:false, modeBarButtonsToRemove:['select2d','lasso2d']});
+    if (!_fitInteractionSetup) setupFitInteraction();
+    // Consume the "fresh view" flag now that this preview has rendered —
+    // otherwise it stays stale until the first Run Fit, which would then
+    // wrongly force the server's default range over whatever the user zoomed to.
+    _resetFitRange = false;
+  } catch { Plotly.purge('fitPlotInner'); }
+}
+
+function updateBandBadge(band, active) {
+  const badge = document.getElementById('fitBandBadge');
+  if (active === 'both') { badge.textContent='g+V'; badge.className='info-badge badge-both'; }
+  else if (band === 'V') { badge.textContent='V';   badge.className='info-badge badge-V'; }
+  else                   { badge.textContent='g';   badge.className='info-badge badge-g'; }
+}
+
+function updateSbVVisibility() {
+  const show = document.getElementById('fitSubType').value === 'Ia_norm';
+  document.getElementById('sBVrow').style.display       = show ? '' : 'none';
+  document.getElementById('sBVboundsRow').style.display = show ? '' : 'none';
+}
+document.getElementById('fitSubType').addEventListener('change', updateSbVVisibility);
+
+function updateFlagUI(flag) {
+  document.querySelectorAll('.flag-btn').forEach(b => b.classList.remove('active'));
+  if (flag) {
+    document.querySelectorAll('.flag-btn').forEach(b => {
+      if (b.textContent === flag) b.classList.add('active');
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FITTER — run fit / MC / findBest / fitAll
+// ═══════════════════════════════════════════════════════════════════════
+function buildFitPayload(extra={}) {
+  return {
+    index:          currentIndex,
+    sub_type:       document.getElementById('fitSubType').value,
+    peak_flux_guess:getNumVal('rpPeakFlux'),
+    peak_time_guess:getNumVal('rpPeakTime'),
+    flux_delta:     getNumVal('rpFluxDelta', 1.0),
+    time_delta:     getNumVal('rpTimeDelta', 50.0),
+    sBV_guess:      getNumVal('rpsBVguess', 0.5),
+    sBV_lo:         getNumVal('rpsBVlo', 0.10),
+    sBV_hi:         getNumVal('rpsBVhi', 1.15),
+    jd_min_fit:     getNumVal('rpJDmin'),
+    jd_max_fit:     getNumVal('rpJDmax'),
+    use_clipping:   document.getElementById('rpSigmaClip').checked,
+    k_corr:         getNumVal('rpKcorr', 0.0),
+    gal_ext:        getNumVal('rpGalext', 0.0),
+    ...extra,
+  };
+}
+
+async function runFit() {
+  setStatus('Fitting…'); toast('Running fit…');
+  try {
+    const d = await api('/api/fit/run','POST', buildFitPayload());
+    renderFitResultChips(d);
+    await renderFitPlot(currentIndex);
+    await refreshObjList();
+    setStatus(`Fit done: χ²/dof = ${fmt(d.chi2_red,3)}`);
+    toast(`Fit done: ${d.sub_type}  χ²/dof=${fmt(d.chi2_red,3)}`);
+  } catch(e) { toast(`Fit error: ${e.message}`); setStatus(e.message); }
+}
+
+async function findBestFit() {
+  setStatus('Trying all templates…'); toast('Finding best template…');
+  try {
+    const d = await api('/api/fit/find_best','POST', buildFitPayload());
+    const st = d.best_sub_type || d.sub_type;
+    document.getElementById('fitSubType').value = st;
+    updateSbVVisibility();
+    if (d.sBV != null) setVal('rpsBVguess', d.sBV);
+    renderFitResultChips(d);
+    await renderFitPlot(currentIndex);
+    await refreshObjList();
+    toast(`Best: ${st}  χ²/dof=${fmt(d.chi2_red,3)}`);
+  } catch(e) { toast(`Error: ${e.message}`); setStatus(e.message); }
+}
+
+async function fitAll() {
+  const st = document.getElementById('fitSubType').value;
+  if (!st) { toast('Select a template first'); return; }
+  if (!(await confirmDialog(`Fit all un-completed objects with template "${st}"?`))) return;
+  toast('Fitting all…'); setStatus('Fitting all…');
+  try {
+    const d = await api('/api/fit/run_all','POST', buildFitPayload());
+    toast(`Fitted ${d.fitted}, skipped ${d.skipped}`);
+    setStatus(`Batch done: ${d.fitted} fitted, ${d.skipped} skipped`);
+    await refreshObjList();
+  } catch(e) { toast(`Error: ${e.message}`); }
+}
+
+async function runMC() {
+  const n_mc = parseInt(document.getElementById('rpNmc').value) || 250;
+  setStatus(`Running ${n_mc} MC iterations…`); toast('Running MC…');
+  try {
+    const d = await api('/api/fit/run_mc','POST',{index:currentIndex, n_mc});
+    renderFitResultChips(d);
+    renderMCHistograms(d);
+    await renderFitPlot(currentIndex);
+    setStatus(`MC done: ${d.n_mc_success} samples`);
+    toast(`MC: ${d.n_mc_success} samples`);
+  } catch(e) { toast(`MC error: ${e.message}`); setStatus(e.message); }
+}
+
+function renderFitResultChips(r) {
+  const chips = [];
+  chips.push(`<span class="chip"><strong>Template:</strong> ${r.sub_type || '—'}</span>`);
+  chips.push(`<span class="chip"><strong>t_peak:</strong> ${fmtErr(r.peak_time, r.peak_time_err_low, r.peak_time_err_up, 2)} JD</span>`);
+  chips.push(`<span class="chip"><strong>App mag:</strong> ${fmtErr(r.app_mag, r.app_mag_err_low, r.app_mag_err_up, 3)}</span>`);
+  if (r.abs_mag != null)
+    chips.push(`<span class="chip"><strong>Abs mag:</strong> ${fmtErr(r.abs_mag, r.abs_mag_err_low, r.abs_mag_err_up, 3)}</span>`);
+  if (r.sBV != null)
+    chips.push(`<span class="chip"><strong>sBV:</strong> ${fmtErr(r.sBV, r.sBV_err_low, r.sBV_err_up, 3)}</span>`);
+  if (r.abs_mag_sBV != null)
+    chips.push(`<span class="chip"><strong>Abs mag (sBV):</strong> ${fmtErr(r.abs_mag_sBV, r.abs_mag_sBV_err_low, r.abs_mag_sBV_err_up, 3)}</span>`);
+  chips.push(`<span class="chip"><strong>χ²/dof:</strong> ${fmt(r.chi2_red,3)}</span>`);
+  chips.push(`<span class="chip"><strong>N_pts:</strong> ${r.n_pts ?? '—'}</span>`);
+  document.getElementById('fitResultChips').innerHTML = chips.join('');
+
+  const wdiv = document.getElementById('fitWarnings');
+  wdiv.innerHTML = '';
+  (r.warnings || []).forEach(w => {
+    const d = document.createElement('div'); d.className='warn-msg'; d.textContent=w;
+    wdiv.appendChild(d);
+  });
+}
+
+async function renderFitPlot(idx) {
+  try {
+    // On navigation (_resetFitRange=true): use server's data-only ranges.
+    // On same-object re-render (MC, re-fit): preserve whatever the user currently sees.
+    const plotDiv = document.getElementById('fitPlotInner');
+    let xrange = null, yrange = null;
+    const useServerRange = _resetFitRange;
+    if (!_resetFitRange && plotDiv?._fullLayout) {
+      xrange = plotDiv._fullLayout.xaxis?.range?.slice() || null;
+      yrange = plotDiv._fullLayout.yaxis?.range?.slice() || null;
+    }
+    _resetFitRange = false;
+
+    const showFlux = document.getElementById('fitYaxisSelect').value === 'flux';
+    const xMode    = document.getElementById('fitXaxisSelect').value;
+    const d = await api(`/api/fit/plot?index=${idx}&flux=${showFlux?1:0}&xaxis=${xMode}`);
+    // Use server data range when navigating to a new object (overrides client-saved range)
+    if (useServerRange) {
+      xrange = d.data_x_range || null;
+      yrange = d.data_y_range || null;
+    }
+
+    const has_resid = d.traces.some(t => t.yaxis === 'y2');
+    const layout = {
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(15,17,23,0.8)',
+      font:{color:'#e2e8f0',family:'Inter,system-ui,sans-serif',size:11},
+      xaxis:{title:d.xaxis_title||'JD',gridcolor:'#2e3352',zerolinecolor:'#2e3352',color:'#94a3b8',
+             domain:[0,1], type: xMode==='ut' ? 'date' : '-',
+             ...(xrange ? {range:xrange,autorange:false} : {autorange:true})},
+      yaxis:{title:d.yaxis_title||'Flux (mJy)',gridcolor:'#2e3352',zerolinecolor:'#2e3352',
+             color:'#94a3b8',domain:has_resid?[0.21,1]:[0,1],
+             ...(yrange ? {range:yrange,autorange:false} : {autorange:true})},
+      yaxis2:has_resid ? {title:'Resid (σ)',gridcolor:'#1e2235',zerolinecolor:'#3a3f6a',
+             color:'#94a3b8',domain:[0,0.17],zeroline:true,autorange:true} : {},
+      showlegend:true,
+      legend:{x:1,y:1,xanchor:'right',bgcolor:'rgba(26,29,39,0.9)',
+              bordercolor:'#2e3352',borderwidth:1,font:{size:10}},
+      margin:{t:20,b:50,l:65,r:10},
+      shapes:d.shapes||[],
+      hovermode:'closest',
+    };
+    // MC sample traces go first so the best-fit line renders on top
+    const mcTraces    = d.traces.filter(t => t.line?.color?.includes('150,150,150'));
+    const otherTraces = d.traces.filter(t => !t.line?.color?.includes('150,150,150'));
+    Plotly.react('fitPlotInner', [...mcTraces, ...otherTraces], layout, {responsive:true,displaylogo:false,
+      modeBarButtonsToRemove:['select2d','lasso2d']});
+    if (!_fitInteractionSetup) setupFitInteraction();
+    document.getElementById('mcInfo').textContent = d.has_mc
+      ? `(${d.n_mc_shown||''} MC samples plotted)` : '';
+  } catch(e) { console.warn('renderFitPlot:', e?.message || e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Pick peak flux/time guess from plot
+// ═══════════════════════════════════════════════════════════════════════
+function togglePickGuess() {
+  _pickingGuess = !_pickingGuess;
+  document.getElementById('btnPickGuess').classList.toggle('armed', _pickingGuess);
+  document.getElementById('fitPlotWrap').classList.toggle('pick-armed', _pickingGuess);
+  if (_pickingGuess) toast('Click on the plot to set peak flux/time guess');
+}
+function disarmPickGuess() {
+  if (!_pickingGuess) return;
+  _pickingGuess = false;
+  document.getElementById('btnPickGuess')?.classList.remove('armed');
+  document.getElementById('fitPlotWrap')?.classList.remove('pick-armed');
+}
+
+// Plotly's axis.p2d() returns a formatted date STRING (not a ms timestamp) for date-type
+// axes, so UT-mode conversions must parse it rather than divide it directly.
+function pixelXToJD(rawXVal, xIsDate) {
+  if (!xIsDate) return parseFloat(rawXVal);
+  const ms = new Date(String(rawXVal).replace(' ', 'T')).getTime();
+  return ms / 86400000 + 2440587.5;
+}
+
+// ASAS-SN switched from V-band to g-band survey imaging around 2018 — objects
+// discovered earlier are typically only well-covered in V, later ones in g.
+// Zooming the fit chart into one era auto-selects the matching band.
+const JD_BAND_2014 = Date.UTC(2014, 0, 1) / 86400000 + 2440587.5;
+const JD_BAND_2018 = Date.UTC(2018, 0, 1) / 86400000 + 2440587.5;
+function computeAutoBand(jdMin, jdMax) {
+  if (jdMin >= JD_BAND_2014 && jdMax <= JD_BAND_2018) return 'V';
+  if (jdMin >= JD_BAND_2018) return 'g';
+  return 'both';
+}
+function applyAutoBand(newVal) {
+  const sel = document.getElementById('rpBands');
+  if (!sel || !newVal || sel.value === newVal) return;
+  sel.value = newVal;
+  setBands();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Fit plot interaction
+// ═══════════════════════════════════════════════════════════════════════
+function setupFitInteraction() {
+  _fitInteractionSetup = true;
+  const pDiv = document.getElementById('fitPlotInner');
+  const wrap = document.getElementById('fitPlotWrap');
+  const selBox = document.getElementById('selBox');
+
+  // Left-click while armed: pick peak flux/time guess at click position
+  pDiv.addEventListener('click', (e) => {
+    if (!_pickingGuess) return;
+    const bb = pDiv.getBoundingClientRect();
+    const fl = pDiv._fullLayout;
+    if (!fl) return;
+    const xa = fl.xaxis, ya = fl.yaxis;
+    if (!xa?.p2d || !ya?.p2d) return;
+    const px = e.clientX - bb.left - fl.margin.l;
+    const py = e.clientY - bb.top  - fl.margin.t;
+    let xVal = xa.p2d(px);
+    let yVal = ya.p2d(py);
+
+    const xIsDate = document.getElementById('fitXaxisSelect').value === 'ut';
+    const yIsMag  = document.getElementById('fitYaxisSelect').value === 'mag';
+    const jd   = pixelXToJD(xVal, xIsDate);
+    const flux = yIsMag  ? (3631.0 * Math.pow(10, -yVal / 2.5) * 1000.0) : yVal;
+
+    setVal('rpPeakTime',  jd.toFixed(2));
+    setVal('rpTimeDelta', 50);
+    setVal('rpPeakFlux',  flux.toFixed(6));
+    setVal('rpFluxDelta', Math.abs(flux * 0.5).toFixed(6));
+
+    toast(`Guess set: peak flux=${flux.toFixed(4)} mJy @ JD ${jd.toFixed(2)} (±50%, ±50d)`);
+    disarmPickGuess();
+  });
+
+  // Right-click to remove nearest point
+  pDiv.addEventListener('contextmenu', async (e) => {
+    e.preventDefault();
+    const bb  = pDiv.getBoundingClientRect();
+    const px  = e.clientX - bb.left;
+    const fl  = pDiv._fullLayout;
+    if (!fl) return;
+    const xa = fl.xaxis;
+    if (!xa || !xa.p2d) return;
+    const xClick = xa.p2d(px - fl.margin.l);
+    const xIsDate = document.getElementById('fitXaxisSelect').value === 'ut';
+    // Convert click position to JD
+    const jdClick = pixelXToJD(xClick, xIsDate);
+    // Use customdata[3] (always JD) for distance calc
+    let bestJD = null; let bestDist = Infinity;
+    (pDiv.data || []).forEach(trace => {
+      if (!Array.isArray(trace.x) || !trace.marker) return;
+      trace.x.forEach((tx, k) => {
+        const jdVal = trace.customdata?.[k]?.[3] ?? (xIsDate ? NaN : parseFloat(tx));
+        if (!isFinite(jdVal)) return;
+        const dist = Math.abs(jdVal - jdClick);
+        if (dist < bestDist) { bestDist = dist; bestJD = jdVal; }
+      });
+    });
+    if (bestJD !== null && bestDist < 5) {
+      try {
+        await api('/api/fit/remove_point','POST',{index:currentIndex, jd:bestJD});
+        toast(`Removed point at JD ${bestJD.toFixed(2)}`);
+        await renderFitPlot(currentIndex);
+      } catch(ex) { toast(ex.message); }
+    }
+  });
+
+  // Shift + drag = rectangle selection
+  wrap.addEventListener('mousedown', (e) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    _selDragging = true;
+    _selStartX   = e.clientX; _selStartY = e.clientY;
+    const bb = wrap.getBoundingClientRect();
+    selBox.style.left   = (e.clientX - bb.left) + 'px';
+    selBox.style.top    = (e.clientY - bb.top)  + 'px';
+    selBox.style.width  = '0'; selBox.style.height = '0';
+    selBox.style.display = 'block';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!_selDragging) return;
+    const bb = wrap.getBoundingClientRect();
+    selBox.style.left   = Math.min(e.clientX, _selStartX) - bb.left + 'px';
+    selBox.style.top    = Math.min(e.clientY, _selStartY) - bb.top  + 'px';
+    selBox.style.width  = Math.abs(e.clientX - _selStartX) + 'px';
+    selBox.style.height = Math.abs(e.clientY - _selStartY) + 'px';
+  });
+  window.addEventListener('mouseup', async (e) => {
+    if (!_selDragging) return;
+    _selDragging = false; selBox.style.display = 'none';
+    const w = Math.abs(e.clientX - _selStartX);
+    const h = Math.abs(e.clientY - _selStartY);
+    if (w < 6 || h < 6) return;
+    const bb = wrap.getBoundingClientRect();
+    const fl = pDiv._fullLayout;
+    if (!fl) return;
+    try {
+      const xa = fl.xaxis; const ya = fl.yaxis;
+      if (!xa?.p2d || !ya?.p2d) return;
+      const ml = fl.margin.l; const mt = fl.margin.t;
+      const x1px = Math.min(_selStartX, e.clientX) - bb.left - ml;
+      const x2px = Math.max(_selStartX, e.clientX) - bb.left - ml;
+      const y1px = Math.min(_selStartY, e.clientY) - bb.top  - mt;
+      const y2px = Math.max(_selStartY, e.clientY) - bb.top  - mt;
+      const xIsDate = document.getElementById('fitXaxisSelect').value === 'ut';
+      const yIsMag  = document.getElementById('fitYaxisSelect').value === 'mag';
+      // Convert x to JD
+      let jd1 = pixelXToJD(xa.p2d(x1px), xIsDate);
+      let jd2 = pixelXToJD(xa.p2d(x2px), xIsDate);
+      // Convert y to flux (region API expects flux)
+      let fv1 = ya.p2d(y2px); let fv2 = ya.p2d(y1px);
+      if (yIsMag) { fv1 = 3631.0*Math.pow(10,-fv1/2.5)*1000.0; fv2 = 3631.0*Math.pow(10,-fv2/2.5)*1000.0; }
+      const d    = await api('/api/fit/remove_region','POST',
+                    {index:currentIndex,x1:jd1,x2:jd2,y1:fv1,y2:fv2});
+      if (d.n_removed > 0) { toast(`Removed ${d.n_removed} points`); await renderFitPlot(currentIndex); }
+      else toast('No points in selection');
+    } catch(ex) { toast(ex.message); }
+  });
+
+  // Auto-select the fitting band from whatever era the user zooms into
+  pDiv.on('plotly_relayout', (ev) => {
+    const xIsDate = document.getElementById('fitXaxisSelect').value === 'ut';
+    if (ev['xaxis.range[0]'] !== undefined && ev['xaxis.range[1]'] !== undefined) {
+      const jdMin = pixelXToJD(ev['xaxis.range[0]'], xIsDate);
+      const jdMax = pixelXToJD(ev['xaxis.range[1]'], xIsDate);
+      applyAutoBand(computeAutoBand(jdMin, jdMax));
+    } else if (ev['xaxis.autorange']) {
+      applyAutoBand('both');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MC histograms
+// ═══════════════════════════════════════════════════════════════════════
+function toggleMC() {
+  mcOpen = !mcOpen;
+  document.getElementById('mcPanel').classList.toggle('open', mcOpen);
+  document.getElementById('mcToggleArrow').textContent = mcOpen ? '▶' : '◀';
+}
+
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+function renderMCHistograms(r) {
+  document.getElementById('mcInfo').textContent = `(${r.n_mc_success||''} MC samples plotted)`;
+
+  const configs = [
+    {key:'mc_peak_flux',    label:'Peak Flux (mJy)',  best:'peak_flux'},
+    {key:'mc_peak_time',    label:'Peak Time (JD)',   best:'peak_time'},
+    {key:'mc_app_mag',      label:'App. Magnitude',   best:'app_mag'},
+    {key:'mc_abs_mag',      label:'Abs. Magnitude',   best:'abs_mag'},
+    {key:'mc_sBV',          label:'sBV',              best:'sBV'},
+    {key:'mc_abs_mag_sBV',  label:'Abs mag (sBV)',    best:'abs_mag_sBV'},
+  ];
+
+  const hasData = configs.some(c => r[c.key]?.length);
+  if (!hasData) return;
+
+  const doRender = () => {
+    const container = document.getElementById('mcHistContainer');
+    container.innerHTML = '';
+    configs.forEach(c => {
+      const vals = r[c.key];
+      if (!vals || !vals.length) return;
+      const el = document.createElement('div');
+      el.style.cssText = 'width:100%;height:130px;flex-shrink:0;';
+      container.appendChild(el);
+      const bv = r[c.best];
+      const shapes = (bv != null) ? [{type:'line',x0:bv,x1:bv,y0:0,y1:1,yref:'paper',
+                                      line:{color:'#ef4444',width:2}}] : [];
+      Plotly.newPlot(el,
+        [{type:'histogram',x:vals,nbinsx:30,marker:{color:'rgba(59,130,246,0.7)',
+          line:{color:'rgba(59,130,246,1)',width:0.5}}}],
+        {paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(15,17,23,0.6)',
+         font:{color:'#94a3b8',size:9,family:'Inter,system-ui'},
+         height:130,
+         xaxis:{title:c.label,gridcolor:'#2e3352',color:'#64748b',titlefont:{size:9}},
+         yaxis:{title:'N',gridcolor:'#2e3352',color:'#64748b',titlefont:{size:9}},
+         margin:{t:14,b:40,l:30,r:6},shapes,showlegend:false,bargap:0.05},
+        {responsive:false,displaylogo:false,
+         modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d','resetScale2d']});
+    });
+  };
+
+  if (!mcOpen) {
+    // Open the panel first, then render after the 0.2s CSS transition finishes
+    toggleMC();
+    setTimeout(doRender, 230);
+  } else {
+    doRender();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Template directory
+// ═══════════════════════════════════════════════════════════════════════
+async function setTemplateDir() {
+  const tdir = document.getElementById('rpTemplateDir').value.trim();
+  if (!tdir) { toast('Enter a template directory path'); return; }
+  toast('Loading templates…');
+  try {
+    const d = await api('/api/fit/set_template_dir','POST',{template_dir:tdir});
+    const n = d.available_templates.length;
+    _applyTemplateList(d.available_templates.map(st => ({subtype:st})));
+    document.getElementById('btnLoadTemplates').classList.add('btn-loaded');
+    toast(`${n} templates ready`);
+  } catch(e) {
+    toast(`Template error: ${e.message}`);
+    document.getElementById('templateStatus').textContent = `Error: ${e.message}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Data manipulation
+// ═══════════════════════════════════════════════════════════════════════
+async function applyVscale() {
+  const v = getNumVal('rpVscale', 1.0);
+  try {
+    await api('/api/fit/set_v_scale','POST',{index:currentIndex,v_scale:v});
+    toast(`V-scale = ${v}`);
+    if (document.getElementById('fitResultChips').innerHTML) await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+async function applyErrInflate() {
+  const v = getNumVal('rpErrInflate', 0.0);
+  try {
+    await api('/api/fit/set_error_inflate','POST',{index:currentIndex,error_inflate:v});
+    toast(`Error inflate = ${v} mJy`);
+    if (document.getElementById('fitResultChips').innerHTML) await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+async function applyBaseline() {
+  const j1 = getNumVal('rpBsJD1'); const j2 = getNumVal('rpBsJD2');
+  if (!j1||!j2) { toast('Enter JD start and end for baseline shift'); return; }
+  try {
+    await api('/api/fit/apply_baseline_shift','POST',{index:currentIndex,jd_start:j1,jd_end:j2});
+    toast('Baseline shift applied per camera');
+    if (document.getElementById('fitResultChips').innerHTML) await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+async function resetPoints() {
+  if (!(await confirmDialog('Restore all manually-removed points?'))) return;
+  try {
+    await api('/api/fit/reset_points','POST',{index:currentIndex});
+    toast('Points restored');
+    await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+async function filterByError() {
+  const sigma = parseFloat(document.getElementById('rpErrSigma')?.value) || 3;
+  try {
+    const d = await api('/api/fit/filter_by_error','POST',{index:currentIndex,n_sigma:sigma});
+    toast(`Removed ${d.n_removed} points with err > ${sigma}× median err`);
+    if (d.n_removed > 0) await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+async function setRedshift() {
+  const z = document.getElementById('rpRedshift').value.trim();
+  try {
+    const d = await api('/api/fit/set_redshift','POST',{index:currentIndex,redshift:z});
+    if (d.dist_mod != null) setVal('rpDistmod', d.dist_mod);
+    toast(`Redshift = ${d.redshift ?? '(cleared)'}`);
+  } catch(e) { toast(e.message); }
+}
+
+async function setBands() {
+  const val = document.getElementById('rpBands').value; // 'g' | 'V' | 'both'
+  const payload = val === 'both'
+    ? {index:currentIndex, active_bands:'both'}
+    : {index:currentIndex, active_bands:'primary', band:val};
+  try {
+    const d = await api('/api/fit/set_bands','POST',payload);
+    updateBandBadge(d.band, d.active_bands);
+    toast(val === 'both' ? 'Active bands: both (g+V)' : `Active band: ${val}-only`);
+    if (document.getElementById('fitResultChips').innerHTML) await renderFitPlot(currentIndex);
+  } catch(e) { toast(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Flag / undo / revert / complete / save
+// ═══════════════════════════════════════════════════════════════════════
+async function setFlag(flag) {
+  try {
+    await api('/api/fit/set_flag','POST',{index:currentIndex,flag});
+    updateFlagUI(flag);
+    refreshObjList();
+    toast(flag ? `Flagged: ${flag}` : 'Flag cleared');
+  } catch(e) { toast(e.message); }
+}
+
+async function undoFit() {
+  try {
+    const d = await api('/api/fit/undo','POST',{index:currentIndex});
+    document.getElementById('btnUndo').disabled = !d.has_undo;
+    toast('Undone');
+    await renderFitPlot(currentIndex);
+    await refreshObjList();
+  } catch(e) { toast(e.message); }
+}
+
+async function revertFit() {
+  if (!(await confirmDialog('Revert all modifications and clear fit for this object?'))) return;
+  try {
+    await api('/api/fit/revert','POST',{index:currentIndex});
+    toast('Reverted to original data');
+    Plotly.purge('fitPlotInner');
+    document.getElementById('fitResultChips').innerHTML  = '';
+    document.getElementById('fitWarnings').innerHTML     = '';
+    document.getElementById('mcHistContainer').innerHTML = '';
+    document.getElementById('mcInfo').textContent        = '';
+    await loadFitGuesses(currentIndex);
+    await refreshObjList();
+  } catch(e) { toast(e.message); }
+}
+
+async function toggleComplete() {
+  try {
+    const d = await api('/api/fit/toggle_complete','POST',{index:currentIndex});
+    const chip = document.getElementById('fitStatusChip');
+    if (d.completed) { chip.textContent='✓ Done'; chip.style.background='#064e3b'; chip.style.color='#6ee7b7'; }
+    else             { chip.textContent='Fitted';  chip.style.background='#422006'; chip.style.color='#fde68a'; }
+    toast(d.completed ? 'Marked as done' : 'Marked as not done');
+    refreshObjList();
+  } catch(e) { toast(e.message); }
+}
+
+async function saveFitResult() {
+  const outPath = document.getElementById('rpOutputCsv').value.trim();
+  if (!outPath) { toast('Set an output CSV path first'); return; }
+  try {
+    const d = await api('/api/fit/save_result','POST',{index:currentIndex,output_path:outPath});
+    toast(`Saved (${d.status}) → ${d.path}`);
+  } catch(e) { toast(`Save error: ${e.message}`); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Initialisation
+// ═══════════════════════════════════════════════════════════════════════
+async function init() {
+  // Fetch and apply defaults first so fields are pre-filled before anything else
+  try {
+    const defs = await api('/api/defaults');
+    setVal('rpTemplateDir', defs.template_dir);
+    setVal('rpOutputCsv',   defs.output_csv);
+    setVal('csvLcDir',      defs.lc_dir);
+    setVal('csvTemplateDir',defs.template_dir);
+    setVal('csvOutputPath', defs.output_csv);
+  } catch {}
+
+  try {
+    await refreshObjList();
+    if (totalObjects > 0) await loadFitGuesses(currentIndex);
+    else setStatus('No data — upload .dat files or load a master CSV');
+  } catch { setStatus('Server not reachable — is Flask running?'); }
+
+  // Load templates: prefer already-loaded catalog, otherwise use default dir
+  try {
+    const td = await api('/api/fit/available_templates');
+    if (td.templates && td.templates.length > 0) {
+      setVal('rpTemplateDir', td.template_dir);
+      _applyTemplateList(td.templates);
+      document.getElementById('btnLoadTemplates').classList.add('btn-loaded');
+    } else {
+      // Auto-load from default dir
+      await setTemplateDir();
+    }
+  } catch {}
+
+  updateSbVVisibility();
+}
+
+function _applyTemplateList(templates) {
+  const sel = document.getElementById('fitSubType'); sel.innerHTML = '';
+  [...templates].sort((a,b) => a.subtype.localeCompare(b.subtype)).forEach(t => {
+    const o = document.createElement('option'); o.value=t.subtype; o.textContent=t.subtype;
+    sel.appendChild(o);
+  });
+  const sts = templates.map(t => t.subtype);
+  sel.value = sts.includes('Ia_norm') ? 'Ia_norm' : sts[0];
+  document.getElementById('templateStatus').textContent = `${templates.length} templates loaded`;
+  updateSbVVisibility();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Axis toggle switches — visible button-pair mirrors a hidden native
+// <select> so every existing `document.getElementById(id).value` read
+// (and the select's own onchange) keeps working unmodified.
+// ═══════════════════════════════════════════════════════════════════════
+function wireAxisToggle(nativeId) {
+  const select = document.getElementById(nativeId);
+  const visual = document.querySelector(`.axis-toggle-visual[data-target="${nativeId}"]`);
+  if (!select || !visual) return;
+  const buttons = [...visual.querySelectorAll('button')];
+  const sync = () => buttons.forEach(b => b.classList.toggle('active', b.dataset.value === select.value));
+  buttons.forEach(b => b.addEventListener('click', () => {
+    if (select.value === b.dataset.value) return;
+    select.value = b.dataset.value;
+    select.dispatchEvent(new Event('change'));
+    sync();
+  }));
+  sync();
+}
+['fitYaxisSelect','fitXaxisSelect'].forEach(wireAxisToggle);
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
